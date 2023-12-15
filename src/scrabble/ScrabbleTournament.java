@@ -11,8 +11,8 @@ public class ScrabbleTournament {
     public ScrabbleTournament() {
         // List contestants here
         players = new ScrabbleAI[] {
-          new ScrabbleTeamProjectScrabbleTeamProject(),
-          new Incrementalist()
+                new ScrabbleTeamProjectScrabbleTeamProject(),
+                new ScrabbleTeamProjectScrabbleTeamProject()
         };
     }
 

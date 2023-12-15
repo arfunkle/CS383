@@ -6,6 +6,8 @@ import java.util.*;
 
 public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
     private static final boolean[] ALL_TILES = {true, true, true, true, true, true, true};
+
+    private Dawg dawg = new Dawg("words.txt");
     private class Move implements ScrabbleMove {
         /**
          * The word to be played.
@@ -118,17 +120,23 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
                             rows[x][y] |= subset; // If there's no perpendicular restrictions, we could theoretically play anything from our hand here
                         else { // Putting a word here would add on to an existing word perpendicularly to it
                             rows[x][y] |= toMask(ANCHOR); // So if we put a tile here we wil be anchored
-                            int mx;
+                            int mx, nx;
                             for (mx = 0; !isEmpty(board, x - mx - 1, y); mx++) {}
                             String word = "";
                             for (int l = 0; !isEmpty(board, x - mx + l, y); l++) // Read the word as it is
                                 word += board.getSquare(new Location(y, x - mx + l));
+                            for (nx = 0; !isEmpty(board, y, x + nx + 1); nx++) {}
+                            for (int l = nx-1; !isEmpty(board, y, x + nx - l); l--)
+                                word += board.getSquare(new Location(x + nx - l, y));
                             for (char letter : "abcdefghijklmnopqrstuvwxyz".toCharArray())
                                 if (maskContains(subset, letter) || maskContains(subset, BLANK)) {
                                     // word = word.substring(0, mx) + letter + word.substring(mx + 1);
-                                    word = word.substring(0, mx) + letter;
-                                    if (tree.verify(word)) // If playing this tile (from our hand) here would make keep the perpendicular word a word,
-                                        rows[x][y] |= toMask(letter); // Then it is theoretically legal to play here
+                                    if (word.length()>mx)
+                                        word = word.substring(0, mx) + letter + word.substring(mx+1);
+                                    else
+                                        word = word.substring(0, mx) + letter;
+                                    if (tree.verify(word))
+                                        rows[x+15][y] |= toMask(letter);
                                 }
                         }
                     }
@@ -150,15 +158,21 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
                             rows[x+15][y] |= subset;
                         else {
                             rows[x+15][y] |= toMask(ANCHOR);
-                            int mx;
+                            int mx, nx;
                             for (mx = 0; !isEmpty(board, y, x - mx - 1); mx++) {}
                             String word = "";
                             for (int l = 0; !isEmpty(board, y, x - mx + l); l++)
                                 word += board.getSquare(new Location(x - mx + l, y));
+                            for (nx = 0; !isEmpty(board, y, x + nx + 1); nx++) {}
+                            for (int l = nx-1; !isEmpty(board, y, x + nx - l); l--)
+                                word += board.getSquare(new Location(x + nx - l, y));
                             for (char letter : "abcdefghijklmnopqrstuvwxyz".toCharArray())
                                 if (maskContains(subset, letter) || maskContains(subset, BLANK)) {
                                     // word = word.substring(0, mx) + letter + word.substring(mx + 1);
-                                    word = word.substring(0, mx) + letter;
+                                    if (word.length()>mx)
+                                        word = word.substring(0, mx) + letter + word.substring(mx+1);
+                                    else
+                                        word = word.substring(0, mx) + letter;
                                     if (tree.verify(word))
                                         rows[x+15][y] |= toMask(letter);
                                 }
@@ -331,7 +345,6 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
 
     @Override
     public ScrabbleMove chooseMove() {
-        Dawg dawg = new Dawg("words.txt");
         ArrayList<Move> moveList = dawg.findAllMoves(gateKeeper);
         Move finalMove = null;
         int finalMoveScore = 0;
