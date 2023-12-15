@@ -1,11 +1,11 @@
 package scrabble;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.PriorityQueue;
-import java.util.TreeMap;
+import edu.princeton.cs.algs4.In;
+
+import java.util.*;
 
 public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
+    private static final boolean[] ALL_TILES = {true, true, true, true, true, true, true};
     private class Move implements ScrabbleMove {
         /**
          * The word to be played.
@@ -49,7 +49,7 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
         // Just stores the head vertex of the tree,
         // but all of the verification-related methods are also here
         private class Dawg_tree {
-            public Dawg_v tree;
+            public Dawg_v tree = new Dawg_v(false);
 
             public Dawg_tree(In input) {
                 for (String word : input.readAllLines()) {
@@ -93,7 +93,7 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
         }
 
         private static boolean maskContains(int mask, char ch) {
-            int result = toMask(ch) | mask;
+            int result = toMask(ch) & mask;
             return result != 0;
         }
 
@@ -125,7 +125,8 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
                                 word += board.getSquare(new Location(y, x - mx + l));
                             for (char letter : "abcdefghijklmnopqrstuvwxyz".toCharArray())
                                 if (maskContains(subset, letter) || maskContains(subset, BLANK)) {
-                                    word = word.substring(0, mx) + letter + word.substring(mx + 1);
+                                    // word = word.substring(0, mx) + letter + word.substring(mx + 1);
+                                    word = word.substring(0, mx) + letter;
                                     if (tree.verify(word)) // If playing this tile (from our hand) here would make keep the perpendicular word a word,
                                         rows[x][y] |= toMask(letter); // Then it is theoretically legal to play here
                                 }
@@ -156,7 +157,8 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
                                 word += board.getSquare(new Location(x - mx + l, y));
                             for (char letter : "abcdefghijklmnopqrstuvwxyz".toCharArray())
                                 if (maskContains(subset, letter) || maskContains(subset, BLANK)) {
-                                    word = word.substring(0, mx) + letter + word.substring(mx + 1);
+                                    // word = word.substring(0, mx) + letter + word.substring(mx + 1);
+                                    word = word.substring(0, mx) + letter;
                                     if (tree.verify(word))
                                         rows[x+15][y] |= toMask(letter);
                                 }
@@ -199,7 +201,7 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
                             letter = BLANK;
                         }
                         int[] newHand = hand.clone();
-                        char newLetter = '_';
+                        char newLetter = ' ';
                         // If we are putting down a letter, we take it out of our hand
                         if (!maskContains(remaining.get(0), STATIC)) {
                             newLetter = letter;
@@ -224,7 +226,7 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
             ArrayList<Character> hand = board.getHand();
             int subset = 0;
             for (char letter : hand)
-                if (letter == '_') subset |= toMask(BLANK);
+                if (letter == ' ') subset |= toMask(BLANK);
                 else subset |= toMask(letter);
             this.getRows(board, subset);
             this.getCols(board, subset);
@@ -232,15 +234,16 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
             ArrayList<Move> moves = new ArrayList<Move>();
             // Basically findAllWordsInRow() for every possible square/starting combination
             for (int x = 0; x < 15; x++) {
-                for (int y = 0; x < 15; y++) {
+                for (int y = 0; y < 15; y++) {
                     Move moveC = new Move("", new Location(y, x), new Location(1, 0));
                     Move moveR = new Move("", new Location(x, y), new Location(0, 1));
                     int[] letters = new int[27];
                     for (char ch : hand)
-                        if (ch == '_')
+                        if (ch == ' ')
                             letters[26]++;
                         else
-                            letters[(int) (ch - 'a')]++;
+                            if (ch >= 'a')
+                                letters[(int) (ch - 'a')]++;
                     ArrayList<Integer> remainingC = new ArrayList<Integer>();
                     ArrayList<Integer> remainingR = new ArrayList<Integer>();
                     for (int i = y; i < 15; i++) {
@@ -258,7 +261,7 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
             ArrayList<Move> permuteMoves = new ArrayList<Move>();
             for (Move move : moves) {
                 int openBlanks = 0;
-                for (char ch : hand) if (ch == '_') openBlanks++;
+                for (char ch : hand) if (ch == ' ') openBlanks++;
                 String playedBlanks = "";
                 for (int i = 0; i < move.word.length(); i++)
                     if (Character.isUpperCase(move.word.charAt(i))) {
@@ -334,14 +337,24 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
         int finalMoveScore = 0;
 
         for (Move currentMove : moveList) {
-            int currentMoveScore = gateKeeper.score(currentMove.word, currentMove.location, currentMove.direction);
-            if (finalMoveScore < currentMoveScore) {
-                finalMoveScore = currentMoveScore;
-                finalMove = currentMove;
+            try {
+                gateKeeper.verifyLegality(currentMove.word, currentMove.location, currentMove.direction);
+                int currentMoveScore = gateKeeper.score(currentMove.word, currentMove.location, currentMove.direction);
+                if (finalMoveScore < currentMoveScore) {
+                    finalMoveScore = currentMoveScore;
+                    finalMove = currentMove;
+                }
+            }
+            catch (IllegalMoveException e) {
+
             }
         }
 
-        return finalMove;
+
+        if (finalMove != null)
+            return new PlayWord(finalMove.word, finalMove.location, finalMove.direction);
+        else
+            return new ExchangeTiles(ALL_TILES);
     }
 
     public static void main(String[] unused) {

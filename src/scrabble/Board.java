@@ -463,7 +463,7 @@ public class Board {
             throw new IllegalMoveException("Word must contain at least one new tile.");
         }
         if (!canBeDrawnFromHand(word, hand)) {
-            throw new IllegalMoveException("Hand does not contain sufficient tiles to play word.");
+            throw new IllegalMoveException(String.format("Hand does not contain sufficient tiles to play word. word:%s, hand:%s", word, hand));
         }
         if (!canBePlacedOnBoard(word, location, direction)) {
             throw new IllegalMoveException("Board placement incorrect (gaps, overlapping tiles, edge of board).");
