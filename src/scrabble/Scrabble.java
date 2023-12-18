@@ -101,7 +101,7 @@ public class Scrabble {
 
     public Scrabble() {
         board = new Board();
-        ai = new Incrementalist(); // Opponent
+        ai = new ScrabbleTeamProjectScrabbleTeamProject(); // Opponent
         ai.setGateKeeper(new GateKeeper(board, 0));
         mode = Mode.AI_PLAYING;
     }

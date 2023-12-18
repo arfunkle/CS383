@@ -5,9 +5,9 @@ import edu.princeton.cs.algs4.In;
 import java.util.*;
 
 public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
-    private static final boolean[] ALL_TILES = {true, true, true, true, true, true, true};
 
-    private Dawg dawg = new Dawg("words.txt");
+    // We are implementing a new version of PlayWord so that we can access the word, location,
+    // and direction from outside the class.
     private class Move implements ScrabbleMove {
         /**
          * The word to be played.
@@ -35,6 +35,11 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
         }
     }
 
+    /****
+     * DAWG - Directed Acyclic Word Graph
+     * This is the core of our bot. We are storing all valid words within it and then using the efficiency of it to
+     * find all valid moves rapidly.
+     */
     private class Dawg {
         // Vertex of a word tree
         private class Dawg_v {
@@ -53,6 +58,7 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
         private class Dawg_tree {
             public Dawg_v tree = new Dawg_v(false);
 
+            // Stores all the words from the file within the tree.
             public Dawg_tree(In input) {
                 for (String word : input.readAllLines()) {
                     Dawg_v head = tree;
@@ -64,6 +70,7 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
                 }
             }
 
+            // Verifies word is in the DAWG
             public boolean verify(String word) {
                 Dawg_v head = tree;
                 for (char letter : word.toCharArray()) {
@@ -130,7 +137,6 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
                                 word += board.getSquare(new Location(x + nx - l, y));
                             for (char letter : "abcdefghijklmnopqrstuvwxyz".toCharArray())
                                 if (maskContains(subset, letter) || maskContains(subset, BLANK)) {
-                                    // word = word.substring(0, mx) + letter + word.substring(mx + 1);
                                     if (word.length()>mx)
                                         word = word.substring(0, mx) + letter + word.substring(mx+1);
                                     else
@@ -147,9 +153,12 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
 
         // Read the rows of the board into rows[][] - see above getCols()
         private void getRows(GateKeeper board, int subset) {
+            numS = 0;
             for (int x = 0; x < 15; x++) {
                 for (int y = 0; y < 15; y++) {
                     char ch = board.getSquare(new Location(x, y));
+                    if (ch == 's')
+                        numS++;
                     if (!isEmpty(board, y, x))
                         rows[x+15][y] = toMask(ch) | toMask(ANCHOR) | toMask(STATIC);
                     else {
@@ -168,7 +177,6 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
                                 word += board.getSquare(new Location(x + nx - l, y));
                             for (char letter : "abcdefghijklmnopqrstuvwxyz".toCharArray())
                                 if (maskContains(subset, letter) || maskContains(subset, BLANK)) {
-                                    // word = word.substring(0, mx) + letter + word.substring(mx + 1);
                                     if (word.length()>mx)
                                         word = word.substring(0, mx) + letter + word.substring(mx+1);
                                     else
@@ -235,44 +243,14 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
             }
         }
 
-        public ArrayList<Move> findAllMoves(GateKeeper board) {
-            // Fill rows[][] with up-to-date information
-            ArrayList<Character> hand = board.getHand();
-            int subset = 0;
-            for (char letter : hand)
-                if (letter == ' ') subset |= toMask(BLANK);
-                else subset |= toMask(letter);
-            this.getRows(board, subset);
-            this.getCols(board, subset);
-
-            ArrayList<Move> moves = new ArrayList<Move>();
-            // Basically findAllWordsInRow() for every possible square/starting combination
-            for (int x = 0; x < 15; x++) {
-                for (int y = 0; y < 15; y++) {
-                    Move moveC = new Move("", new Location(y, x), new Location(1, 0));
-                    Move moveR = new Move("", new Location(x, y), new Location(0, 1));
-                    int[] letters = new int[27];
-                    for (char ch : hand)
-                        if (ch == ' ')
-                            letters[26]++;
-                        else
-                            if (ch >= 'a')
-                                letters[(int) (ch - 'a')]++;
-                    ArrayList<Integer> remainingC = new ArrayList<Integer>();
-                    ArrayList<Integer> remainingR = new ArrayList<Integer>();
-                    for (int i = y; i < 15; i++) {
-                        remainingC.add(rows[x][i]);
-                        remainingR.add(rows[x + 15][i]);
-                    }
-                    findAllWordsInRow(moves, moveC, "", false, letters.clone(), this.tree.tree, remainingC);
-                    findAllWordsInRow(moves, moveR, "", false, letters.clone(), this.tree.tree, remainingR);
-                }
-            }
-
-            // If we used blanks, though, there are gonna be a bunch of nasty permutations,
-            // so we've gotta go through them all to be sure we've caputured *every* move
-            // i also didn't really dry this out so its pretty disgusting atm
-            ArrayList<Move> permuteMoves = new ArrayList<Move>();
+        // This is a helper method for dealing with blank tiles.
+        // If we used blanks, though, there are going to be a bunch of nasty permutations,
+        // so we have to go through them all to be sure we've captured every move.
+        // This will maximize scoring as if we have a move with two possible placements for the blank
+        // (for example: oCcur and ocCur), and one of the letters might be on a letter multiplier,
+        // this accounts for both options.
+        public ArrayList<Move> permuteMovesWithBlanks(ArrayList<Move> moves, ArrayList<Character> hand) {
+            ArrayList<Move> permuteMoves = new ArrayList<>();
             for (Move move : moves) {
                 int openBlanks = 0;
                 for (char ch : hand) if (ch == ' ') openBlanks++;
@@ -284,6 +262,7 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
                     }
                 String word = move.word.toLowerCase();
                 switch (playedBlanks.length()) {
+
                     case 0:
                         permuteMoves.add(move);
                         if (openBlanks > 0) {
@@ -331,11 +310,59 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
             }
             return permuteMoves;
         }
+
+        // This method finds all valid moves on the board and returns an ArrayList of each move.
+        public ArrayList<Move> findAllMoves(GateKeeper board) {
+            // Fill rows[][] with up-to-date information
+            ArrayList<Character> hand = board.getHand();
+            int subset = 0;
+            for (char letter : hand)
+                if (letter == ' ') subset |= toMask(BLANK);
+                else subset |= toMask(letter);
+            this.getRows(board, subset);
+            this.getCols(board, subset);
+
+            ArrayList<Move> moves = new ArrayList<>();
+            // Basically findAllWordsInRow() for every possible square/starting combination
+            for (int x = 0; x < 15; x++) {
+                for (int y = 0; y < 15; y++) {
+                    Move moveC = new Move("", new Location(y, x), new Location(1, 0));
+                    Move moveR = new Move("", new Location(x, y), new Location(0, 1));
+                    int[] letters = new int[27];
+                    for (char ch : hand)
+                        if (ch == ' ')
+                            letters[26]++;
+                        else {
+                            if (ch >= 'a')
+                                letters[(int) (ch - 'a')]++;
+                            if (ch == 's')
+                                numS++;
+                        }
+
+                    ArrayList<Integer> remainingC = new ArrayList<>();
+                    ArrayList<Integer> remainingR = new ArrayList<>();
+                    for (int i = y; i < 15; i++) {
+                        remainingC.add(rows[x][i]);
+                        remainingR.add(rows[x + 15][i]);
+                    }
+                    findAllWordsInRow(moves, moveC, "", false, letters.clone(), this.tree.tree, remainingC);
+                    findAllWordsInRow(moves, moveR, "", false, letters.clone(), this.tree.tree, remainingR);
+                }
+            }
+
+            return permuteMovesWithBlanks(moves, hand);
+        }
     }
+
+    private static final boolean[] ALL_TILES = {true, true, true, true, true, true, true};
+
+    private int numS = 0;
+
+    private Dawg dawg;
 
     private GateKeeper gateKeeper;
     public ScrabbleTeamProjectScrabbleTeamProject() {
-
+        dawg = new Dawg("words.txt");
 
     }
     @Override
@@ -343,6 +370,10 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
         this.gateKeeper = gateKeeper;
     }
 
+    /****
+     * Uses our DAWG to calculate all possible moves before sending back the highest scoring one.
+     * @return returns the highest scoring move in the form of a PlayWord object or an ExchangeTiles object for all our tiles.
+     */
     @Override
     public ScrabbleMove chooseMove() {
         ArrayList<Move> moveList = dawg.findAllMoves(gateKeeper);
@@ -359,7 +390,7 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
                 }
             }
             catch (IllegalMoveException e) {
-
+                // continue to next move
             }
         }
 
@@ -368,6 +399,35 @@ public class ScrabbleTeamProjectScrabbleTeamProject implements ScrabbleAI {
             return new PlayWord(finalMove.word, finalMove.location, finalMove.direction);
         else
             return new ExchangeTiles(ALL_TILES);
+    }
+
+    // NOT USED - Didn't make any noticeable difference
+    // Used to check if blanks
+    private boolean confirmWordWithBlanksIsHighValue(Move currentMove, int currentMoveScore) {
+        if (currentMoveScore > 50) return true;
+        for (char ch : currentMove.word.toCharArray()) {
+            if (ch >= 65 && ch <= 90) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // NOT USED - Didn't make any noticeable difference
+    // This method makes sure that we aren't setting the other player up for an easy plural play.
+    private boolean confirmNotSettingUpPlural(Move currentMove, int currentMoveScore) {
+        if (numS == 4) return true;
+        StringBuilder newWord = new StringBuilder(currentMove.word);
+        newWord.append("s");
+        try {
+            gateKeeper.verifyLegality(newWord.toString(), currentMove.location, currentMove.direction);
+            int nextMoveScore = gateKeeper.score(newWord.toString(), currentMove.location, currentMove.direction);
+            if (nextMoveScore > currentMoveScore+2) return false;
+            else return true;
+        }
+        catch (IllegalMoveException e) {
+            return true;
+        }
     }
 
     public static void main(String[] unused) {
